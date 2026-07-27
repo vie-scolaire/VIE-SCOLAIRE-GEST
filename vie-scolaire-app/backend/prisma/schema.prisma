@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  cpe
+  surveillant
+  enseignant
+  parent
+  eleve
+}
+
+enum StatutAbsence {
+  non_justifiee
+  en_attente
+  justifiee
+}
+
+enum TypeAbsence {
+  absence
+  retard
+}
+
+enum StatutJustificatif {
+  en_attente
+  accepte
+  refuse
+}
+
+enum TypeSanction {
+  avertissement
+  retenue
+  exclusion_temporaire
+  conseil_discipline
+}
+
+enum StatutSanction {
+  programmee
+  effectuee
+  annulee
+}
+
+model Etablissement {
+  id        String    @id @default(uuid())
+  nom       String
+  adresse   String?
+  ville     String?
+  telephone String?
+  classes   Classe[]
+  utilisateurs Utilisateur[]
+}
+
+model Classe {
+  id                     String        @id @default(uuid())
+  etablissement          Etablissement @relation(fields: [etablissementId], references: [id])
+  etablissementId        String
+  nom                    String
+  niveau                 String
+  eleves                 Eleve[]
+  cours                  Cours[]
+  professeurPrincipalId  String?
+}
+
+model Eleve {
+  id             String   @id @default(uuid())
+  numero         String   @unique
+  nom            String
+  prenom         String
+  dateNaissance  DateTime?
+  classe         Classe   @relation(fields: [classeId], references: [id])
+  classeId       String
+  utilisateur    Utilisateur? @relation(fields: [utilisateurId], references: [id])
+  utilisateurId  String?  @unique
+  photoUrl       String?
+  responsables   EleveResponsable[]
+  absences       Absence[]
+  sanctions      Sanction[]
+}
+
+model ResponsableLegal {
+  id            String   @id @default(uuid())
+  nom           String
+  prenom        String
+  telephone     String?
+  email         String?
+  lienParente   String?
+  utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id])
+  utilisateurId String?  @unique
+  eleves        EleveResponsable[]
+}
+
+model EleveResponsable {
+  eleve              Eleve            @relation(fields: [eleveId], references: [id])
+  eleveId            String
+  responsable        ResponsableLegal @relation(fields: [responsableId], references: [id])
+  responsableId      String
+  contactPrincipal   Boolean @default(false)
+
+  @@id([eleveId, responsableId])
+}
+
+model Utilisateur {
+  id              String   @id @default(uuid())
+  nom             String
+  email           String   @unique
+  motDePasseHash  String
+  role            Role
+  etablissement   Etablissement @relation(fields: [etablissementId], references: [id])
+  etablissementId String
+  actif           Boolean  @default(true)
+  pushToken       String?
+  eleve           Eleve?
+  responsable     ResponsableLegal?
+  messagesEnvoyes Message[] @relation("MessagesEnvoyes")
+  messagesRecus   Message[] @relation("MessagesRecus")
+  createdAt       DateTime @default(now())
+}
+
+model Absence {
+  id             String         @id @default(uuid())
+  eleve          Eleve          @relation(fields: [eleveId], references: [id])
+  eleveId        String
+  date           DateTime
+  heureDebut     String
+  heureFin       String
+  matiere        String?
+  type           TypeAbsence
+  dureeRetardMin Int?
+  statut         StatutAbsence  @default(non_justifiee)
+  saisiParId     String?
+  justificatif   Justificatif?
+  createdAt      DateTime       @default(now())
+}
+
+model Justificatif {
+  id               String             @id @default(uuid())
+  absence          Absence            @relation(fields: [absenceId], references: [id])
+  absenceId        String             @unique
+  motif            String
+  description      String?
+  fichierUrl       String?
+  envoyeParId      String
+  statut           StatutJustificatif @default(en_attente)
+  traiteParId      String?
+  dateEnvoi        DateTime           @default(now())
+  dateTraitement   DateTime?
+}
+
+model Sanction {
+  id              String         @id @default(uuid())
+  eleve           Eleve          @relation(fields: [eleveId], references: [id])
+  eleveId         String
+  type            TypeSanction
+  motif           String
+  date            DateTime
+  duree           String?
+  auteurId        String
+  statut          StatutSanction @default(programmee)
+  notifieParent   Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+}
+
+model Cours {
+  id            String   @id @default(uuid())
+  classe        Classe   @relation(fields: [classeId], references: [id])
+  classeId      String
+  matiere       String
+  enseignantId  String?
+  jourSemaine   String
+  heureDebut    String
+  heureFin      String
+  salle         String?
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  expediteur     Utilisateur @relation("MessagesEnvoyes", fields: [expediteurId], references: [id])
+  expediteurId   String
+  destinataire   Utilisateur @relation("MessagesRecus", fields: [destinataireId], references: [id])
+  destinataireId String
+  eleveId        String?
+  contenu        String
+  lu             Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+}
+
+model Notification {
+  id            String   @id @default(uuid())
+  utilisateurId String
+  type          String
+  referenceId   String?
+  contenu       String
+  lu            Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
